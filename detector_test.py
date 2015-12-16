@@ -17,6 +17,8 @@ class SimpleDetector(simple_switch_13.SimpleSwitch13):
 		self.hosts = {}
 		self.max_table = {}
 		self.MAX_PORT = 16
+
+		#self.rating = {}
 		#self.monitor_thread = hub.spawn(self._monitor)
 
 	def _request_stats(self, datapath):
@@ -177,8 +179,61 @@ class SimpleDetector(simple_switch_13.SimpleSwitch13):
 						self.datapaths[dp[0]].send_msg(mod)
 			self.finish[dpid] = True
 
-	#def _monitor(self):
-	#	while True:
-	#		for dp in self.datapaths.values ():
-	#			self._request_stats(dp)
-	#		hub.sleep (10)
+		'''
+		else:
+			save all table in some data structure
+
+		'''
+	'''
+	def check(dp):
+		self._request_stats(dp)	#this is the table B
+		for all injacent switch:
+			_request_stats(dp)	#request all counter table from A, C, D
+
+		###check if table is ready
+
+		for all rules in table_B:
+			match = rule.match_field
+			if table_B.action == fowarding:
+				dst_switch = table_B.action.out_dst
+				sum = 0
+				for all injacent switch of B except dst_switch:
+					get their to_B table
+					for all rules in to_B table:
+						if to_B.match_field == match:
+							sum += counter
+
+				for all rules in dst_switch.from_B table:
+					if match_field == match:
+						if (counter == counter):
+							this rule passed the test
+						else:
+							this rule failed the test
+							#can break and assume this switch is compromised
+
+			else if table_B.action == dropping:
+				for all injacent switch of B:
+					get their from_B table
+					for all rules in from_B table:
+						if from_B.match_field == (match and from B):
+							if counter != 0:
+								boooo!
+
+
+
+
+
+	'''
+	def _monitor(self):
+		'''
+		while True:
+			for dp in self.datapaths.values ():
+				dpid = dp.id
+				if self.finish[dpid]:
+					if check(dp) == fail:
+						self.rating[dpid]++
+				
+			hub.sleep (10)
+
+
+		'''
