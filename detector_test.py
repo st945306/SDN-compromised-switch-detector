@@ -45,6 +45,7 @@ class SimpleDetector(simple_switch_13.SimpleSwitch13):
 			if port <= self.MAX_PORT and not self.topology[dpid].has_key(port):
 				self.hosts[dpid].append(port)
 
+	#called when a switch is added
 	@set_ev_cls(ofp_event.EventOFPStateChange, [MAIN_DISPATCHER, DEAD_DISPATCHER])
 	def _state_change_handler(self, ev):
 		datapath = ev.datapath
@@ -64,6 +65,7 @@ class SimpleDetector(simple_switch_13.SimpleSwitch13):
 				del self.topology[dpid]
 				del self.hosts[dpid]
 
+	#called when a switch send a flow table back
 	@set_ev_cls(ofp_event.EventOFPFlowStatsReply, MAIN_DISPATCHER)
 	def _flow_stats_reply_handler(self, ev):
 		body = ev.msg.body
@@ -72,6 +74,7 @@ class SimpleDetector(simple_switch_13.SimpleSwitch13):
 		ofproto = datapath.ofproto		
 		parser = datapath.ofproto_parser
 
+		#do the add rule part
 		if not self.finish[dpid]:
 			for rule in body:
 				if rule.cookie == 1:
@@ -103,10 +106,14 @@ class SimpleDetector(simple_switch_13.SimpleSwitch13):
 				instructions += temp
 								
 				# modify original rule
-				mod = parser.OFPFlowMod(datapath=datapath, priority=priority, match=match, command=ofproto.OFPFC_DELETE_STRICT, out_port=ofproto.OFPP_ANY, out_group=ofproto.OFPP_ANY)
+				mod = parser.OFPFlowMod(datapath=datapath, priority=priority, match=match, command=ofproto.OFPFC_DELETE_STRICT,
+										out_port=ofproto.OFPP_ANY, out_group=ofproto.OFPP_ANY)
 				datapath.send_msg(mod)
-				mod = parser.OFPFlowMod(datapath=datapath, cookie=cookie, table_id=1+self.MAX_PORT+table_id, idle_timeout=idle_timeout, hard_timeout=hard_timeout, priority=priority, flags=flags, match=match, instructions=instructions)
+
+				mod = parser.OFPFlowMod(datapath=datapath, cookie=cookie, table_id=1+self.MAX_PORT+table_id, idle_timeout=idle_timeout,
+										hard_timeout=hard_timeout, priority=priority, flags=flags, match=match, instructions=instructions)
 				datapath.send_msg(mod)
+
 				# add forwarding table
 				for port in self.hosts[dpid]:
 					# table 0
@@ -122,8 +129,10 @@ class SimpleDetector(simple_switch_13.SimpleSwitch13):
 					match_0 = parser.OFPMatch()
 					actions = actions = [parser.OFPActionOutput(port)]
 					instruction = [parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS, actions)]
-					mod = parser.OFPFlowMod(datapath=datapath, table_id=self.max_table[dpid]-1-self.MAX_PORT+port, match=match_0, instructions=instruction, priority=0, cookie=cookie)
+					mod = parser.OFPFlowMod(datapath=datapath, table_id=self.max_table[dpid]-1-self.MAX_PORT+port, match=match_0,
+											instructions=instruction, priority=0, cookie=cookie)
 					datapath.send_msg(mod)
+
 				for port in self.topology[dpid].keys():
 					# table 0
 					match_0 = parser.OFPMatch(in_port=port)
@@ -138,7 +147,8 @@ class SimpleDetector(simple_switch_13.SimpleSwitch13):
 					match_0 = parser.OFPMatch()
 					actions = actions = [parser.OFPActionOutput(port)]
 					instruction = [parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS, actions)]
-					mod = parser.OFPFlowMod(datapath=datapath, table_id=self.max_table[dpid]-1-self.MAX_PORT+port, match=match_0, instructions=instruction, priority=0, cookie=cookie)
+					mod = parser.OFPFlowMod(datapath=datapath, table_id=self.max_table[dpid]-1-self.MAX_PORT+port, match=match_0,
+											instructions=instruction, priority=0, cookie=cookie)
 					datapath.send_msg(mod)
 				new_match = {}
 				for key,value in match.items():
@@ -157,29 +167,34 @@ class SimpleDetector(simple_switch_13.SimpleSwitch13):
 								instruction = [parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS, actions)]
 								table_id = self.max_table[dp[0]] - 1 - self.MAX_PORT + dp[1]
 								# add ingress rule
-								mod = parser.OFPFlowMod(datapath=self.datapaths[dp[0]], cookie=cookie, table_id=table_id, idle_timeout=idle_timeout, hard_timeout=hard_timeout, priority=priority, flags=flags, match=match, instructions=instruction)
+								mod = parser.OFPFlowMod(datapath=self.datapaths[dp[0]], cookie=cookie, table_id=table_id, idle_timeout=idle_timeout,
+														hard_timeout=hard_timeout, priority=priority, flags=flags, match=match, instructions=instruction)
 								self.datapaths[dp[0]].send_msg(mod)
 								# add egress rule for invalid output port
 								new_match['in_port'] = dp[1]
 								match = parser.OFPMatch(**new_match)
-								mod = parser.OFPFlowMod(datapath=self.datapaths[dp[0]], cookie=cookie, table_id=dp[1], idle_timeout=idle_timeout, hard_timeout=hard_timeout, priority=priority, flags=flags, match=match, instructions=[])
+								mod = parser.OFPFlowMod(datapath=self.datapaths[dp[0]], cookie=cookie, table_id=dp[1], idle_timeout=idle_timeout,
+														hard_timeout=hard_timeout, priority=priority, flags=flags, match=match, instructions=[])
 								self.datapaths[dp[0]].send_msg(mod)
 							# egress node
 							else:
 								# add egress rule for true output port
 								instruction = [parser.OFPInstructionGotoTable(1+self.MAX_PORT)]
-								mod = parser.OFPFlowMod(datapath=self.datapaths[dp[0]], cookie=cookie, table_id=dp[1], idle_timeout=idle_timeout, hard_timeout=hard_timeout, priority=priority, flags=flags, match=match, instructions=instruction)
+								mod = parser.OFPFlowMod(datapath=self.datapaths[dp[0]], cookie=cookie, table_id=dp[1], idle_timeout=idle_timeout,
+														hard_timeout=hard_timeout, priority=priority, flags=flags, match=match, instructions=instruction)
 								self.datapaths[dp[0]].send_msg(mod)
 				# drop rule
 				else:
 					for port,dp in self.topology[dpid].items():
 						new_match['in_port'] = dp[1]
 						match = parser.OFPMatch(**new_match)
-						mod = parser.OFPFlowMod(datapath=self.datapaths[dp[0]], cookie=cookie, table_id=dp[1], idle_timeout=idle_timeout, hard_timeout=hard_timeout, priority=priority, flags=flags, match=match, instructions=[])
+						mod = parser.OFPFlowMod(datapath=self.datapaths[dp[0]], cookie=cookie, table_id=dp[1], idle_timeout=idle_timeout,
+												hard_timeout=hard_timeout, priority=priority, flags=flags, match=match, instructions=[])
 						self.datapaths[dp[0]].send_msg(mod)
 			self.finish[dpid] = True
 
 		'''
+		#check counters
 		else:
 			save all table in some data structure
 
@@ -190,7 +205,7 @@ class SimpleDetector(simple_switch_13.SimpleSwitch13):
 		for all injacent switch:
 			_request_stats(dp)	#request all counter table from A, C, D
 
-		###check if table is ready
+		###check if tables are ready
 
 		for all rules in table_B:
 			match = rule.match_field
