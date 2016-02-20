@@ -2,8 +2,9 @@ from ryu.app import simple_switch_13
 from ryu.controller import ofp_event
 from ryu.controller.handler import MAIN_DISPATCHER ,DEAD_DISPATCHER, CONFIG_DISPATCHER
 from ryu.controller.handler import set_ev_cls
-from ryu.topology import switches
+from ryu.topology import switches, api
 from ryu.lib import hub
+import adder, topology
 
 class SimpleDetector(simple_switch_13.SimpleSwitch13):
 	_CONTEXTS = {'switches': switches.Switches}	
@@ -11,13 +12,16 @@ class SimpleDetector(simple_switch_13.SimpleSwitch13):
 	def __init__(self, *args, **kwargs):
 		super(SimpleDetector, self).__init__(*args, **kwargs)
 		self.switches = kwargs['switches']
+		#get dp from dpid
 		self.datapaths = {}
+		#check finish state of dpid
 		self.finish = {}
+		#topology[dpid][portNum] = (Connected switch)[dpid, portNum]
 		self.topology = {}
 		self.hosts = {}
+		#max tableNum on dpid
 		self.max_table = {}
 		self.MAX_PORT = 16
-		
 		#self.rating = {}
 		#self.monitor_thread = hub.spawn(self._monitor)
 
@@ -26,15 +30,15 @@ class SimpleDetector(simple_switch_13.SimpleSwitch13):
 		parser = datapath.ofproto_parser
 		req = parser.OFPFlowStatsRequest(datapath)
 		datapath.send_msg(req)
-
+	#get max tableNum for each switch
 	@set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)
 	def _switch_features_handler(self, ev):
 		msg = ev.msg
 		self.max_table[msg.datapath_id] = msg.n_tables
-
+		print 'max table num is %d' % msg.n_tables
+	'''
 	def _record_topology(self, dpid):
 		hub.sleep(0.01)
-
 		for link in self.switches.links:
 			src = link.src
 			dst = link.dst
@@ -43,11 +47,10 @@ class SimpleDetector(simple_switch_13.SimpleSwitch13):
 			self.topology[src.dpid][src.port_no] = [dst.dpid, dst.port_no]
 			self.topology[dst.dpid][dst.port_no] = [src.dpid, src.port_no]
 		self.hosts.setdefault(dpid, [])
-
 		for port in self.switches.port_state[dpid]:
 			if port <= self.MAX_PORT and not self.topology[dpid].has_key(port):
 				self.hosts[dpid].append(port)
-
+	'''
 	#called when a switch is added
 	@set_ev_cls(ofp_event.EventOFPStateChange, [MAIN_DISPATCHER, DEAD_DISPATCHER])
 	def _state_change_handler(self, ev):
@@ -57,8 +60,11 @@ class SimpleDetector(simple_switch_13.SimpleSwitch13):
 			if not dpid in self.datapaths:
 				self.datapaths[dpid] = datapath
 				self.finish[dpid] = False
-				self._record_topology(dpid)
-				self._request_stats(datapath)
+				#self._record_topology(dpid)
+				if dpid == 2:
+					self._request_stats(datapath)
+				if len(self.datapaths) == topology.switchNum:
+					adder.addTestRule(self.datapaths)
 		else:
 			if dpid in self.datapaths:
 				del self.datapaths[dpid]
@@ -68,6 +74,22 @@ class SimpleDetector(simple_switch_13.SimpleSwitch13):
 				del self.topology[dpid]
 				del self.hosts[dpid]
 
+	@set_ev_cls(ofp_event.EventOFPFlowStatsReply, MAIN_DISPATCHER)
+	def _flow_stats_reply_handler(self, ev):
+		body = ev.msg.body
+		datapath = ev.msg.datapath
+		dpid = datapath.id
+		ofp = datapath.ofproto		
+		parser = datapath.ofproto_parser
+
+		#add rule
+		if not self.finish[dpid]:
+			for rule in body:
+				print rule
+		#save table to check
+		else:
+			pass
+	'''
 	#called when a switch send a flow table back
 	@set_ev_cls(ofp_event.EventOFPFlowStatsReply, MAIN_DISPATCHER)
 	def _flow_stats_reply_handler(self, ev):
@@ -195,13 +217,11 @@ class SimpleDetector(simple_switch_13.SimpleSwitch13):
 												hard_timeout=hard_timeout, priority=priority, flags=flags, match=match, instructions=[])
 						self.datapaths[dp[0]].send_msg(mod)
 			self.finish[dpid] = True
-
-		'''
 		#check counters return table
 		else:
-			save all table in some data structure
+			#save all table in some data structure
 
-		'''
+	'''
 	'''
 	def check(dp):
 		self._request_stats(dp)	#this is the table B
