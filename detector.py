@@ -4,7 +4,8 @@ from ryu.controller.handler import MAIN_DISPATCHER ,DEAD_DISPATCHER, CONFIG_DISP
 from ryu.controller.handler import set_ev_cls
 from ryu.topology import switches, api
 from ryu.lib import hub
-import adder, topology
+import adder
+import topology as topo
 
 class SimpleDetector(simple_switch_13.SimpleSwitch13):
 	_CONTEXTS = {'switches': switches.Switches}	
@@ -36,7 +37,9 @@ class SimpleDetector(simple_switch_13.SimpleSwitch13):
 		msg = ev.msg
 		self.max_table[msg.datapath_id] = msg.n_tables
 		print 'max table num is %d' % msg.n_tables
+
 	'''
+	use this to record topology but switches.links is always empty?
 	def _record_topology(self, dpid):
 		hub.sleep(0.01)
 		for link in self.switches.links:
@@ -63,8 +66,10 @@ class SimpleDetector(simple_switch_13.SimpleSwitch13):
 				#self._record_topology(dpid)
 				if dpid == 2:
 					self._request_stats(datapath)
-				if len(self.datapaths) == topology.switchNum:
+				if len(self.datapaths) == topo.switchNum:
+					topo.initTopology(self.switches, self.max_table)
 					adder.addTestRule(self.datapaths)
+		#what is this for?
 		else:
 			if dpid in self.datapaths:
 				del self.datapaths[dpid]
@@ -86,6 +91,27 @@ class SimpleDetector(simple_switch_13.SimpleSwitch13):
 		if not self.finish[dpid]:
 			for rule in body:
 				print rule
+				for port in range(1, topo.maxPort[dpid] + 1):
+					if topo.isSwitch(dpid, port):
+						remoteSwitchID = topo.getRemoteSwitch(dpid, port)
+						remotePort = topo.getRemotePort(dpid, port)
+						#add forwarding rule on toTable on remote switch
+						toTableID = topo.getToTableID(remoteSwitchID, remotePort)
+						adder.addFWRuleByMatch(self.datapaths[remoteSwitchID], toTableID, rule.match, remotePort)
+						#add goto main table rule on fromTable on remote switch
+						fromTableID = topo.getFromTableID(remoteSwitchID, remotePort)
+						adder.addGTRuleByMatch(self.datapaths[remoteSwitchID], fromTableID,
+												rule.match, topo.getMainTableID(remoteSwitchID))
+			#delete all rules on t0
+
+
+
+
+			#add go to table rules on t0
+
+
+
+			
 		#save table to check
 		else:
 			pass
