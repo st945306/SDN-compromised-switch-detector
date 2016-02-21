@@ -64,11 +64,10 @@ class SimpleDetector(simple_switch_13.SimpleSwitch13):
 				self.datapaths[dpid] = datapath
 				self.finish[dpid] = False
 				#self._record_topology(dpid)
-				if dpid == 2:
-					self._request_stats(datapath)
 				if len(self.datapaths) == topo.switchNum:
 					topo.initTopology(self.switches, self.max_table)
 					adder.addTestRule(self.datapaths)
+					self._request_stats(self.datapaths[2])
 		#what is this for?
 		else:
 			if dpid in self.datapaths:
