@@ -41,6 +41,18 @@ def addFWRuleByMatch(datapath, tableID, match, outPort):
 		flags=ofp.OFPFF_SEND_FLOW_REM, instructions=insts)
 	datapath.send_msg(mod)
 
+def addFWDefaultRule(datapath, tableID, outPort):
+	ofp = datapath.ofproto
+	parser = datapath.ofproto_parser
+	actions = [datapath.ofproto_parser.OFPActionOutput(outPort)]
+	insts = [parser.OFPInstructionActions(ofp.OFPIT_APPLY_ACTIONS, actions)]
+	mod = parser.OFPFlowMod(
+		datapath=datapath, table_id=tableID, match=None, cookie=0,
+		command=ofp.OFPFC_ADD, idle_timeout=0, hard_timeout=0,
+		priority=ofp.OFP_DEFAULT_PRIORITY,
+		flags=ofp.OFPFF_SEND_FLOW_REM, instructions=insts)
+	datapath.send_msg(mod)
+
 def addGTRuleByPort(datapath, tableID, inPort, dstTableID):
 	ofp = datapath.ofproto
 	parser = datapath.ofproto_parser
@@ -64,7 +76,25 @@ def addGTRuleByMatch(datapath, tableID, match, dstTableID):
 		flags=ofp.OFPFF_SEND_FLOW_REM, instructions=insts)
 	datapath.send_msg(mod)
 
+def addGTDefaultRule(datapath, tableID, dstTableID):
+	ofp = datapath.ofproto
+	parser = datapath.ofproto_parser
+	insts = [parser.OFPInstructionGotoTable(dstTableID)]
+	mod = parser.OFPFlowMod(
+		datapath=datapath, table_id=tableID, match=None, cookie=0,
+		command=ofp.OFPFC_ADD, idle_timeout=0, hard_timeout=0,
+		priority=ofp.OFP_DEFAULT_PRIORITY,
+		flags=ofp.OFPFF_SEND_FLOW_REM, instructions=insts)
+	datapath.send_msg(mod)
+
+def removeRule(datapath, rule):
+	ofp = datapath.ofproto
+	parser = datapath.ofproto_parser
+	mod = parser.OFPFlowMod(datapath=datapath, priority=rule.priority, match=rule.match, command=ofp.OFPFC_DELETE_STRICT,
+							out_port=ofp.OFPP_ANY, out_group=ofp.OFPP_ANY)
+	datapath.send_msg(mod)
+
 def addTestRule(datapaths):
-	addFWRuleByIP(datapaths[2], 0, '192.168.0.1', 5)
+	addFWRuleByIP(datapaths[2], 0, '192.168.0.1', 3)
 	#addFWRuleByPort(datapaths[3], 2, 100, 200)
 	#addGTRulebyPort(datapaths[3], 2, 5, 5)

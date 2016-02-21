@@ -83,25 +83,53 @@ class SimpleDetector(simple_switch_13.SimpleSwitch13):
 		body = ev.msg.body
 		datapath = ev.msg.datapath
 		dpid = datapath.id
-		ofp = datapath.ofproto		
+		ofp = datapath.ofproto
 		parser = datapath.ofproto_parser
 
 		#add rule
 		if not self.finish[dpid]:
+			#create default rules for every table on this switch
+			for port in range(1, topo.maxPort[dpid] + 1):
+				if topo.isSwitch(dpid, port):
+					#add forwarding rule on toTable on this switch
+					toTableID = topo.getToTableID(dpid, port)
+					adder.addFWDefaultRule(self.datapaths[dpid], toTableID, port)
+					#add goto main table rule on fromTable on this switch
+					fromTableID = topo.getFromTableID(dpid, port)
+					adder.addGTDefaultRule(self.datapaths[dpid], fromTableID, topo.getMainTableID(dpid))
+					#add goto fromTable rule on t0
+					adder.addGTRuleByPort(self.datapaths[dpid], 0, port, fromTableID)
+			#process each rule
 			for rule in body:
 				print rule
-				for port in range(1, topo.maxPort[dpid] + 1):
-					if topo.isSwitch(dpid, port):
-						remoteSwitchID = topo.getRemoteSwitch(dpid, port)
-						remotePort = topo.getRemotePort(dpid, port)
-						#add forwarding rule on toTable on remote switch
-						toTableID = topo.getToTableID(remoteSwitchID, remotePort)
-						adder.addFWRuleByMatch(self.datapaths[remoteSwitchID], toTableID, rule.match, remotePort)
-						#add goto main table rule on fromTable on remote switch
-						fromTableID = topo.getFromTableID(remoteSwitchID, remotePort)
-						adder.addGTRuleByMatch(self.datapaths[remoteSwitchID], fromTableID,
-												rule.match, topo.getMainTableID(remoteSwitchID))
-			#delete all rules on t0
+				instruction = rule.instructions[0]
+				#forward rule
+				if isinstance(instruction, parser.OFPInstructionActions):
+					forwardPort = rule.instructions[0].actions[0].port
+					if not 1 <= forwardPort <= 255:
+						continue
+					for port in range(1, topo.maxPort[dpid] + 1):
+						if topo.isSwitch(dpid, port):
+							remoteSwitchID = topo.getRemoteSwitch(dpid, port)
+							remotePort = topo.getRemotePort(dpid, port)
+							#add forwarding rule on toTable on remote switch
+							toTableID = topo.getToTableID(remoteSwitchID, remotePort)
+							adder.addFWRuleByMatch(self.datapaths[remoteSwitchID], toTableID, rule.match, remotePort)
+							#add goto main table rule on fromTable on remote switch
+							fromTableID = topo.getFromTableID(remoteSwitchID, remotePort)
+							adder.addGTRuleByMatch(self.datapaths[remoteSwitchID], fromTableID,
+													rule.match, topo.getMainTableID(remoteSwitchID))
+					#add goto toTable rule to main table on this switch
+					mainTableID = topo.getMainTableID(dpid)
+					forwardPort = rule.instructions[0].actions[0].port
+					toTableID = topo.getToTableID(dpid, forwardPort)
+					adder.addGTRuleByMatch(self.datapaths[dpid], mainTableID, rule.match, toTableID)
+					#delete this rule on t0
+					adder.removeRule(self.datapaths[dpid], rule)
+
+				#goto table rule
+				else:
+					pass
 
 
 
