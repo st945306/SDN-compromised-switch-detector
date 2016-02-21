@@ -111,7 +111,7 @@ class SimpleDetector(simple_switch_13.SimpleSwitch13):
 
 
 
-			
+			self.finish[dpid] = True
 		#save table to check
 		else:
 			pass
