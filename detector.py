@@ -202,6 +202,7 @@ class SimpleDetector(simple_switch_13.SimpleSwitch13):
 		while not self.isReady(dpid):
 			print 'not ready'
 			hub.sleep(1)
+			
 		print 'ready to check'
 		'''
 		for all rules in table_B:
