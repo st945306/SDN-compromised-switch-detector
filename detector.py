@@ -20,17 +20,40 @@ class SimpleDetector(simple_switch_13.SimpleSwitch13):
 		#topology[dpid][portNum] = (Connected switch)[dpid, portNum]
 		self.topology = {}
 		self.hosts = {}
+		#original flow table on dpid
+		self.flowTables = {}
+		#counter flow tables
+		self.counterTables = {}
+		#check if counter table is ready
+		self.ready = {}
 		#max tableNum on dpid
 		self.max_table = {}
 		self.MAX_PORT = 16
-		#self.rating = {}
-		#self.monitor_thread = hub.spawn(self._monitor)
+		#malice value for dpid
+		self.mValue = {}
 
+		#init
+		for i in range(1, topo.switchNum + 1):
+			self.finish[i] = False
+			self.counterTables[i] = {}
+			self.ready[i] = 0
+			self.mValue[i] = 0
+
+		self.monitor_thread = hub.spawn(self._monitor)
+
+	'''
 	#request all flow tables from a switch
 	def _request_stats(self, datapath):
 		parser = datapath.ofproto_parser
 		req = parser.OFPFlowStatsRequest(datapath)
 		datapath.send_msg(req)
+	'''
+	#request specific flow table with table id
+	def requestFlowTable(self, datapath, tableID):
+		parser = datapath.ofproto_parser
+		req = parser.OFPFlowStatsRequest(datapath, table_id=tableID)
+		datapath.send_msg(req)
+
 	#get max tableNum for each switch
 	@set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)
 	def _switch_features_handler(self, ev):
@@ -62,12 +85,12 @@ class SimpleDetector(simple_switch_13.SimpleSwitch13):
 		if ev.state == MAIN_DISPATCHER:
 			if not dpid in self.datapaths:
 				self.datapaths[dpid] = datapath
-				self.finish[dpid] = False
 				#self._record_topology(dpid)
 				if len(self.datapaths) == topo.switchNum:
 					topo.initTopology(self.switches, self.max_table)
 					adder.addTestRule(self.datapaths)
-					self._request_stats(self.datapaths[2])
+					for i in range(1, topo.switchNum + 1):
+						self.requestFlowTable(self.datapaths[i], 0)
 		#what is this for?
 		else:
 			if dpid in self.datapaths:
@@ -78,6 +101,22 @@ class SimpleDetector(simple_switch_13.SimpleSwitch13):
 				del self.topology[dpid]
 				del self.hosts[dpid]
 
+	#return true if all switches finish initialize
+	def isFinish(self):
+		for i in range(1, topo.switchNum + 1):
+			if not self.finish[i]:
+				return False
+		return True
+
+	#return true if all counter tables for dpid is ready
+	def isReady(self, dpid):
+		adjSwitches = topo.getAdjSwitches(dpid)
+		for i in adjSwitches:
+			if self.ready[i] != 2:
+				return False
+		return True	
+
+	#called when a switch reply flow table
 	@set_ev_cls(ofp_event.EventOFPFlowStatsReply, MAIN_DISPATCHER)
 	def _flow_stats_reply_handler(self, ev):
 		body = ev.msg.body
@@ -87,7 +126,9 @@ class SimpleDetector(simple_switch_13.SimpleSwitch13):
 		parser = datapath.ofproto_parser
 
 		#add rule
-		if not self.finish[dpid]:
+		if not self.isFinish():
+			#save the original flow table
+			self.flowTables[dpid] = body
 			#create default rules for every table on this switch
 			for port in range(1, topo.maxPort[dpid] + 1):
 				if topo.isSwitch(dpid, port):
@@ -130,18 +171,86 @@ class SimpleDetector(simple_switch_13.SimpleSwitch13):
 				#goto table rule
 				else:
 					pass
-
-
-
-
-			#add go to table rules on t0
-
-
-
 			self.finish[dpid] = True
 		#save table to check
 		else:
-			pass
+			tableID = body[0].table_id
+			self.counterTables[dpid][tableID] = body
+			self.ready[dpid] += 1
+			print 'table', tableID, 'on switch', dpid, 'is received'
+
+			
+
+	
+	def check(self, dpid):
+		#this is the flowtable to check
+		oriFlowtable = self.flowTables[dpid]
+		for i in range(1, topo.switchNum + 1):
+			self.ready[i] = 0
+		for port in range(1, topo.maxPort[dpid] + 1):
+			if topo.isSwitch(dpid, port):
+				remoteSwitchID = topo.getRemoteSwitch(dpid, port)
+				remotePort = topo.getRemotePort(dpid, port)
+				#request toTable
+				self.requestFlowTable(self.datapaths[remoteSwitchID],
+										topo.getToTableID(remoteSwitchID, remotePort))
+				#request fromTable
+				self.requestFlowTable(self.datapaths[remoteSwitchID], 
+										topo.getFromTableID(remoteSwitchID, remotePort))
+				print 'request send'
+		#check if all counter tables are ready
+		while not self.isReady(dpid):
+			print 'not ready'
+			hub.sleep(1)
+		print 'ready to check'
+		'''
+		for all rules in table_B:
+			match = rule.match_field
+			if rule.action == fowarding:
+				dst_switch = table_B.action.out_dst
+				sum = 0
+
+				#count the sum of in-packet
+				for all injacent switch of B except dst_switch:
+					get their to_B table
+					for t in all to_B tables:
+						for rules r in table t:
+							if r.match_field == match:
+								sum += counter
+
+				#
+				for all rules r in dst_switch.from_B table:
+					if r.match_field == match:
+						if (r.counter == sum):
+							this rule passed the test
+						else:
+							this rule failed the test
+							#can break and assume this switch is compromised
+
+			else if rule.action == dropping:
+				for all injacent switches of B:
+					get their from_B table
+					for all table t in all from_B table:
+						for all rules r in table t:
+							if r.match_field == match:
+								if counter != 0:
+									boooo!
+		'''
+		return True
+	
+	
+	def _monitor(self):
+		#wait until all switches finish initailize
+		while not self.isFinish():
+			hub.sleep(1)
+
+		while True:
+			for dp in self.datapaths.values():
+				dpid = dp.id
+				if dpid == 2 and self.check(dpid) == False:
+					self.mValue[dpid] += 1			
+			hub.sleep(10)
+
 	'''
 	#called when a switch send a flow table back
 	@set_ev_cls(ofp_event.EventOFPFlowStatsReply, MAIN_DISPATCHER)
@@ -275,63 +384,3 @@ class SimpleDetector(simple_switch_13.SimpleSwitch13):
 			#save all table in some data structure
 
 	'''
-	'''
-	def check(dp):
-		self._request_stats(dp)	#this is the table B
-		for all injacent switches:
-			_request_stats(dp)	#request all counter tables from A, C, D
-
-		###check if tables are ready
-		while(not ready)
-			hub.sleep(1)
-
-		for all rules in table_B:
-			match = rule.match_field
-			if rule.action == fowarding:
-				dst_switch = table_B.action.out_dst
-				sum = 0
-
-				#count the sum of in-packet
-				for all injacent switch of B except dst_switch:
-					get their to_B table
-					for t in all to_B tables:
-						for rules r in table t:
-							if r.match_field == match:
-								sum += counter
-
-				#
-				for all rules r in dst_switch.from_B table:
-					if r.match_field == match:
-						if (r.counter == sum):
-							this rule passed the test
-						else:
-							this rule failed the test
-							#can break and assume this switch is compromised
-
-			else if rule.action == dropping:
-				for all injacent switches of B:
-					get their from_B table
-					for all table t in all from_B table:
-						for all rules r in table t:
-							if r.match_field == match:
-								if counter != 0:
-									boooo!
-
-
-
-
-
-	'''
-	def _monitor(self):
-		'''
-		while True:
-			for dp in self.datapaths.values():
-				dpid = dp.id
-				if self.finish[dpid]:
-					if check(dp) == fail:
-						self.rating[dpid]++
-				
-			hub.sleep(10)
-
-
-		'''

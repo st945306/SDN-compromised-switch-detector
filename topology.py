@@ -47,6 +47,14 @@ def getMainTableID(dpid):
 def isSwitch(dpid, port):
 	return portMap[(dpid, port)] != (0, 0)
 
+#return a list of dpid of adjacent switches
+def getAdjSwitches(dpid):
+	result = []
+	for port in range(1, maxPort[dpid] + 1):
+		if isSwitch(dpid, port):
+			result.append(getRemoteSwitch(dpid, port))
+	return result
+
 def getRemoteSwitch(dpid, port):
 	return portMap[(dpid, port)][0]
 
