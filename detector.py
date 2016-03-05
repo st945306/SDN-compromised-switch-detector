@@ -179,10 +179,26 @@ class SimpleDetector(simple_switch_13.SimpleSwitch13):
 			self.ready[dpid] += 1
 			print 'table', tableID, 'on switch', dpid, 'is received'
 
-			
+	def compare(self, a, b):
+		if "ipv4_dst" in a and "ipv4_dst" in b:
+			return a['ipv4_dst'] == b['ipv4_dst']
+		#print "not ipv4 rules"
+		return False
 
-	
+	def findRule(self, match, table):
+		#print "match", match
+		#print "table", table
+		for rule in table:
+			#print "match", match
+			#print "rule.match", rule.match
+			if self.compare(match, rule.match):
+				return rule
+			print "not found", match
+
 	def check(self, dpid):
+		datapath = self.datapaths[dpid]
+		ofp = datapath.ofproto
+		parser = datapath.ofproto_parser
 		#this is the flowtable to check
 		oriFlowtable = self.flowTables[dpid]
 		for i in range(1, topo.switchNum + 1):
@@ -204,9 +220,26 @@ class SimpleDetector(simple_switch_13.SimpleSwitch13):
 			hub.sleep(1)
 			
 		print 'ready to check'
+		for rule in oriFlowtable:
+			match = rule.match
+			instruction = rule.instructions[0]
+
+			#forward rule
+			if isinstance(instruction, parser.OFPInstructionActions):
+				forwardPort = instruction.actions[0].port
+				#ignore broadcast rule
+				if forwardPort > topo.maxPort[dpid]:
+					continue
+				#get the sum of in-packet
+				for port in range(1, topo.maxPort[dpid] + 1):
+					if topo.isSwitch(dpid, port):
+						remoteSwitchID = topo.getRemoteSwitch(dpid, port)
+						remotePort = topo.getRemotePort(dpid, port)
+						toTableID = topo.getToTableID(remoteSwitchID, remotePort)
+						counterRule = self.findRule(match, self.counterTables[remoteSwitchID][toTableID])
+						
+						print counterRule.packet_count
 		'''
-		for all rules in table_B:
-			match = rule.match_field
 			if rule.action == fowarding:
 				dst_switch = table_B.action.out_dst
 				sum = 0
@@ -245,13 +278,15 @@ class SimpleDetector(simple_switch_13.SimpleSwitch13):
 		while not self.isFinish():
 			hub.sleep(1)
 
+		self.check(2)
+		'''	
 		while True:
 			for dp in self.datapaths.values():
 				dpid = dp.id
 				if dpid == 2 and self.check(dpid) == False:
 					self.mValue[dpid] += 1			
 			hub.sleep(10)
-
+		'''
 	'''
 	#called when a switch send a flow table back
 	@set_ev_cls(ofp_event.EventOFPFlowStatsReply, MAIN_DISPATCHER)
