@@ -30,8 +30,7 @@ def initTopology(switches, max_table):
 	portState = switches.port_state
 	for i in range(1, switchNum + 1):
 		maxPort[i] = len(portState[i]) - 1
-	print maxPort
-	print getFromTableID(2, 2)
+	print "max port:", maxPort
 
 #get to_port_table ID on switch dpid
 def getToTableID(dpid, port):

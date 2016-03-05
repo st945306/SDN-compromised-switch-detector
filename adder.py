@@ -61,7 +61,8 @@ def addGTRuleByPort(datapath, tableID, inPort, dstTableID):
 	mod = parser.OFPFlowMod(
 		datapath=datapath, table_id=tableID, match=match, cookie=0,
 		command=ofp.OFPFC_ADD, idle_timeout=0, hard_timeout=0,
-		priority=ofp.OFP_DEFAULT_PRIORITY,
+		#priority=ofp.OFP_DEFAULT_PRIORITY,
+		priority=1,
 		flags=ofp.OFPFF_SEND_FLOW_REM, instructions=insts)
 	datapath.send_msg(mod)
 
@@ -83,7 +84,8 @@ def addGTDefaultRule(datapath, tableID, dstTableID):
 	mod = parser.OFPFlowMod(
 		datapath=datapath, table_id=tableID, match=None, cookie=0,
 		command=ofp.OFPFC_ADD, idle_timeout=0, hard_timeout=0,
-		priority=ofp.OFP_DEFAULT_PRIORITY,
+		#priority=ofp.OFP_DEFAULT_PRIORITY,
+		priority=1,
 		flags=ofp.OFPFF_SEND_FLOW_REM, instructions=insts)
 	datapath.send_msg(mod)
 
@@ -95,6 +97,6 @@ def removeRule(datapath, rule):
 	datapath.send_msg(mod)
 
 def addTestRule(datapaths):
-	addFWRuleByIP(datapaths[2], 0, '192.168.0.1', 3)
+	addFWRuleByIP(datapaths[2], 0, '10.0.0.3', 3)
 	#addFWRuleByPort(datapaths[3], 2, 100, 200)
 	#addGTRulebyPort(datapaths[3], 2, 5, 5)

@@ -39,7 +39,7 @@ class SimpleDetector(simple_switch_13.SimpleSwitch13):
 			self.ready[i] = 0
 			self.mValue[i] = 0
 
-		self.monitor_thread = hub.spawn(self._monitor)
+		#self.monitor_thread = hub.spawn(self._monitor)
 
 	'''
 	#request all flow tables from a switch
@@ -231,14 +231,27 @@ class SimpleDetector(simple_switch_13.SimpleSwitch13):
 				if forwardPort > topo.maxPort[dpid]:
 					continue
 				#get the sum of in-packet
+				inPacket = 0
 				for port in range(1, topo.maxPort[dpid] + 1):
 					if topo.isSwitch(dpid, port):
 						remoteSwitchID = topo.getRemoteSwitch(dpid, port)
 						remotePort = topo.getRemotePort(dpid, port)
 						toTableID = topo.getToTableID(remoteSwitchID, remotePort)
 						counterRule = self.findRule(match, self.counterTables[remoteSwitchID][toTableID])
-						
-						print counterRule.packet_count
+						print counterRule.packet_count, "packets from switch", remoteSwitchID
+						inPacket += counterRule.packet_count
+
+				print "sum of in-packet:", inPacket
+				#get the sum of out-packet
+				remoteSwitchID = topo.getRemoteSwitch(dpid, forwardPort)
+				remotePort = topo.getRemotePort(dpid, port)
+				fromTableID = topo.getFromTableID(remoteSwitchID, remotePort)
+				counterRule = self.findRule(match, self.counterTables[remoteSwitchID][fromTableID])
+				outPacket = counterRule.packet_count
+				print "out-packet:", outPacket
+
+
+
 		'''
 			if rule.action == fowarding:
 				dst_switch = table_B.action.out_dst
