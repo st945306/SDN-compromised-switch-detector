@@ -97,6 +97,8 @@ def removeRule(datapath, rule):
 	datapath.send_msg(mod)
 
 def addTestRule(datapaths):
+	addFWRuleByIP(datapaths[1], 0, '10.0.0.3', 2)
 	addFWRuleByIP(datapaths[2], 0, '10.0.0.3', 3)
+	addFWRuleByIP(datapaths[3], 0, '10.0.0.3', 1)
 	#addFWRuleByPort(datapaths[3], 2, 100, 200)
 	#addGTRulebyPort(datapaths[3], 2, 5, 5)

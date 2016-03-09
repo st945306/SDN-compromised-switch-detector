@@ -140,6 +140,8 @@ class SimpleDetector(simple_switch_13.SimpleSwitch13):
 					adder.addGTDefaultRule(self.datapaths[dpid], fromTableID, topo.getMainTableID(dpid))
 					#add goto fromTable rule on t0
 					adder.addGTRuleByPort(self.datapaths[dpid], 0, port, fromTableID)
+			#add default rule on table 0, so packet from host won't ask controller
+			adder.addGTDefaultRule(self.datapaths[dpid], 0, topo.getMainTableID(dpid))
 			#process each rule
 			for rule in body:
 				print rule
