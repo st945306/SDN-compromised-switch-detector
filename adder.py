@@ -1,7 +1,6 @@
 '''
 provide add rule functions
 '''
-
 def addFWRuleByPort(datapath, tableID, inPort, outPort):
 	ofp = datapath.ofproto
 	parser = datapath.ofproto_parser
@@ -15,7 +14,7 @@ def addFWRuleByPort(datapath, tableID, inPort, outPort):
 		priority=1,
 		flags=ofp.OFPFF_SEND_FLOW_REM, instructions=insts)
 	datapath.send_msg(mod)
-	
+
 def addFWRuleByIP(datapath, tableID, ipDst, outPort):
 	ofp = datapath.ofproto
 	parser = datapath.ofproto_parser
@@ -51,7 +50,7 @@ def addFWDefaultRule(datapath, tableID, outPort):
 	mod = parser.OFPFlowMod(
 		datapath=datapath, table_id=tableID, match=None, cookie=0,
 		command=ofp.OFPFC_ADD, idle_timeout=0, hard_timeout=0,
-		priority=ofp.OFP_DEFAULT_PRIORITY,
+		priority=0,
 		flags=ofp.OFPFF_SEND_FLOW_REM, instructions=insts)
 	datapath.send_msg(mod)
 
@@ -59,7 +58,8 @@ def addGTRuleByPort(datapath, tableID, inPort, dstTableID):
 	ofp = datapath.ofproto
 	parser = datapath.ofproto_parser
 	insts = [parser.OFPInstructionGotoTable(dstTableID)]
-	match = parser.OFPMatch(in_port=inPort)  
+	match = parser.OFPMatch(in_port=inPort)
+	#print match
 	mod = parser.OFPFlowMod(
 		datapath=datapath, table_id=tableID, match=match, cookie=0,
 		command=ofp.OFPFC_ADD, idle_timeout=0, hard_timeout=0,
@@ -86,7 +86,7 @@ def addGTDefaultRule(datapath, tableID, dstTableID):
 	mod = parser.OFPFlowMod(
 		datapath=datapath, table_id=tableID, match=None, cookie=0,
 		command=ofp.OFPFC_ADD, idle_timeout=0, hard_timeout=0,
-		priority=ofp.OFP_DEFAULT_PRIORITY,
+		priority=0,
 		flags=ofp.OFPFF_SEND_FLOW_REM, instructions=insts)
 	datapath.send_msg(mod)
 
@@ -98,6 +98,13 @@ def removeRule(datapath, rule):
 	datapath.send_msg(mod)
 
 def addTestRule(datapaths):
+	'''test by IP
+	addFWRuleByIP(datapaths[1], 0, '10.0.0.3', 2)
+	addFWRuleByIP(datapaths[2], 0, '10.0.0.3', 3)
+	addFWRuleByIP(datapaths[3], 0, '10.0.0.3', 1)
+	'''
+	
+	#test by port
 	addFWRuleByPort(datapaths[1], 0, 1, 2)
 	#addFWRuleByPort(datapaths[1], 0, 2, 1)
 
@@ -106,7 +113,7 @@ def addTestRule(datapaths):
 
 	addFWRuleByPort(datapaths[3], 0, 2, 1)
 	#addFWRuleByPort(datapaths[3], 0, 1, 2)
-
+	
 	#addGTDefaultRule(datapaths[1], 3, 252)
 	#addFWRuleByPort(datapaths[3], 2, 100, 200)
 	#addGTRulebyPort(datapaths[3], 2, 5, 5)

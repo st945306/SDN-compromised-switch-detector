@@ -2,17 +2,17 @@ from ryu.app import simple_switch_13
 from ryu.controller import ofp_event
 from ryu.controller.handler import MAIN_DISPATCHER ,DEAD_DISPATCHER, CONFIG_DISPATCHER
 from ryu.controller.handler import set_ev_cls
-from ryu.topology import switches, api
+#from ryu.topology import switches, api
 from ryu.lib import hub
 import adder
 import topology as topo
 
 class SimpleDetector(simple_switch_13.SimpleSwitch13):
-	_CONTEXTS = {'switches': switches.Switches}	
+	#_CONTEXTS = {'switches': switches.Switches}	
 
 	def __init__(self, *args, **kwargs):
 		super(SimpleDetector, self).__init__(*args, **kwargs)
-		self.switches = kwargs['switches']
+		#self.switches = kwargs['switches']
 		#get dp from dpid
 		self.datapaths = {}
 		#check finish state of dpid
@@ -87,7 +87,7 @@ class SimpleDetector(simple_switch_13.SimpleSwitch13):
 				self.datapaths[dpid] = datapath
 				#self._record_topology(dpid)
 				if len(self.datapaths) == topo.switchNum:
-					topo.initTopology(self.switches, self.max_table)
+					topo.initTopology(self.max_table)
 					adder.addTestRule(self.datapaths)
 					#this should be change
 					#self.requestFlowTable(self.datapaths[2], 0)
@@ -135,17 +135,24 @@ class SimpleDetector(simple_switch_13.SimpleSwitch13):
 			self.flowTables[dpid] = body
 			#create default rules for every table on this switch
 			for port in range(1, topo.maxPort[dpid] + 1):
-				if topo.isSwitch(dpid, port):
-					#add forwarding rule on toTable on this switch
-					toTableID = topo.getToTableID(dpid, port)
-					adder.addFWDefaultRule(self.datapaths[dpid], toTableID, port)
-					#add goto main table rule on fromTable on this switch
-					fromTableID = topo.getFromTableID(dpid, port)
-					adder.addGTDefaultRule(self.datapaths[dpid], fromTableID, topo.getMainTableID(dpid))
-					#add goto fromTable rule on t0
-					adder.addGTRuleByPort(self.datapaths[dpid], 0, port, fromTableID)
+				#add forwarding rule on toTable on this switch
+				toTableID = topo.getToTableID(dpid, port)
+				adder.addFWDefaultRule(self.datapaths[dpid], toTableID, port)
+				#add goto main table rule on fromTable on this switch
+				fromTableID = topo.getFromTableID(dpid, port)
+				adder.addGTDefaultRule(self.datapaths[dpid], fromTableID, topo.getMainTableID(dpid))
+				#add goto fromTable rule on t0
+				print dpid, 'here, add', port, fromTableID
+				adder.addGTRuleByPort(self.datapaths[dpid], 0, port, fromTableID)
+
+
 			#add default rule on table 0, so packet from host won't ask controller
 			adder.addGTDefaultRule(self.datapaths[dpid], 0, topo.getMainTableID(dpid))
+			#I don't know why I have to do this QQ
+			adder.addGTRuleByPort(self.datapaths[1], 0, 1, 1)
+			adder.addGTRuleByPort(self.datapaths[2], 0, 2, 2)
+			adder.addGTRuleByPort(self.datapaths[3], 0, 2, 2)
+
 			#process each rule
 			for rule in body:
 				print rule
@@ -242,44 +249,45 @@ class SimpleDetector(simple_switch_13.SimpleSwitch13):
 				#ignore broadcast rule
 				if forwardPort > topo.maxPort[dpid]:
 					continue
-				#get the sum of in-packet
-				inPacket = 0
 				if "in_port" in rule.match:
-				#match field is port
+					print 'match field is port'
+					#get the sum of in-packet
+					inPacket = 0
 					inPort = rule.match["in_port"]
 					remoteSwitchID = topo.getRemoteSwitch(dpid, inPort)
 					remotePort = topo.getRemotePort(dpid, port)
 					toTableID = topo.getToTableID(remoteSwitchID, remotePort)
 					inPacket = self.sumAllCounters(self.counterTables[remoteSwitchID][toTableID])
+					print "sum of in-packet:", inPacket
+					#get the sum of out-packet (this is wrong)
+					remoteSwitchID = topo.getRemoteSwitch(dpid, forwardPort)
+					remotePort = topo.getRemotePort(dpid, forwardPort)
+					fromTableID = topo.getFromTableID(remoteSwitchID, remotePort)
+					outPacket = self.sumAllCounters(self.counterTables[remoteSwitchID][fromTableID])
+					print "out-packet:", outPacket
+					print "===========================DELTA =", outPacket - inPacket
 				elif "ipv4_dst" in rule.match:
-				#match field is ipv4
+					print 'match field is ipv4'
+					#get the sum of in-packet
+					inPacket = 0
 					for port in range(1, topo.maxPort[dpid] + 1):
 						if topo.isSwitch(dpid, port):
 							remoteSwitchID = topo.getRemoteSwitch(dpid, port)
 							remotePort = topo.getRemotePort(dpid, port)
 							toTableID = topo.getToTableID(remoteSwitchID, remotePort)
 							counterRule = self.findRule(match, self.counterTables[remoteSwitchID][toTableID])
+							print rule
+							print counterRule
 							print counterRule.packet_count, "packets from switch", remoteSwitchID
 							inPacket += counterRule.packet_count
-
-				print "sum of in-packet:", inPacket
-				
-				'''
-				#get the sum of out-packet (real)
-				remoteSwitchID = topo.getRemoteSwitch(dpid, forwardPort)
-				remotePort = topo.getRemotePort(dpid, forwardPort)
-				fromTableID = topo.getFromTableID(remoteSwitchID, remotePort)
-				counterRule = self.findRule(match, self.counterTables[remoteSwitchID][fromTableID])
-				outPacket = counterRule.packet_count
-				'''
-				#get the sum of out-packet (fake)
-				remoteSwitchID = topo.getRemoteSwitch(dpid, forwardPort)
-				remotePort = topo.getRemotePort(dpid, forwardPort)
-				fromTableID = topo.getFromTableID(remoteSwitchID, remotePort)
-				outPacket = self.sumAllCounters(self.counterTables[remoteSwitchID][fromTableID])
-				print "out-packet:", outPacket
-
-
+					print "sum of in-packet:", inPacket
+					#get the sum of out-packet
+					remoteSwitchID = topo.getRemoteSwitch(dpid, forwardPort)
+					remotePort = topo.getRemotePort(dpid, forwardPort)
+					fromTableID = topo.getFromTableID(remoteSwitchID, remotePort)
+					counterRule = self.findRule(match, self.counterTables[remoteSwitchID][fromTableID])
+					outPacket = counterRule.packet_count
+					print "sum of out-packet:", outPacket
 
 		'''
 			if rule.action == fowarding:

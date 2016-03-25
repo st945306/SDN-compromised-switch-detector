@@ -21,15 +21,16 @@ portMap[(3, 1)] = (0, 0)
 ######define######
 
 maxPort = {}
+maxPort[1] = 2
+maxPort[2] = 3
+maxPort[3] = 2
+
 maxTable = {}
 
-def initTopology(switches, max_table):
+def initTopology(max_table):
 	global maxTable
 	global maxPort
 	maxTable = max_table
-	portState = switches.port_state
-	for i in range(1, switchNum + 1):
-		maxPort[i] = len(portState[i]) - 1
 	print "max port:", maxPort
 
 #get to_port_table ID on switch dpid
