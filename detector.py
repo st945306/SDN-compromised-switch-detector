@@ -39,7 +39,7 @@ class SimpleDetector(simple_switch_13.SimpleSwitch13):
 			self.ready[i] = 0
 			self.mValue[i] = 0
 
-		#self.monitor_thread = hub.spawn(self._monitor)
+		self.monitor_thread = hub.spawn(self._monitor)
 
 	'''
 	#request all flow tables from a switch
@@ -89,8 +89,12 @@ class SimpleDetector(simple_switch_13.SimpleSwitch13):
 				if len(self.datapaths) == topo.switchNum:
 					topo.initTopology(self.switches, self.max_table)
 					adder.addTestRule(self.datapaths)
+					#this should be change
+					#self.requestFlowTable(self.datapaths[2], 0)
+					
 					for i in range(1, topo.switchNum + 1):
 						self.requestFlowTable(self.datapaths[i], 0)
+					
 		#what is this for?
 		else:
 			if dpid in self.datapaths:
@@ -184,7 +188,7 @@ class SimpleDetector(simple_switch_13.SimpleSwitch13):
 	def compare(self, a, b):
 		if "ipv4_dst" in a and "ipv4_dst" in b:
 			return a['ipv4_dst'] == b['ipv4_dst']
-		#print "not ipv4 rules"
+		print "not ipv4 rules"
 		return False
 
 	def findRule(self, match, table):
@@ -195,7 +199,13 @@ class SimpleDetector(simple_switch_13.SimpleSwitch13):
 			#print "rule.match", rule.match
 			if self.compare(match, rule.match):
 				return rule
-			print "not found", match
+		print "not found", match
+	
+	def sumAllCounters(self, table):
+		result = 0
+		for rule in table:
+			result += rule.packet_count
+		return result
 
 	def check(self, dpid):
 		datapath = self.datapaths[dpid]
@@ -234,22 +244,39 @@ class SimpleDetector(simple_switch_13.SimpleSwitch13):
 					continue
 				#get the sum of in-packet
 				inPacket = 0
-				for port in range(1, topo.maxPort[dpid] + 1):
-					if topo.isSwitch(dpid, port):
-						remoteSwitchID = topo.getRemoteSwitch(dpid, port)
-						remotePort = topo.getRemotePort(dpid, port)
-						toTableID = topo.getToTableID(remoteSwitchID, remotePort)
-						counterRule = self.findRule(match, self.counterTables[remoteSwitchID][toTableID])
-						print counterRule.packet_count, "packets from switch", remoteSwitchID
-						inPacket += counterRule.packet_count
+				if "in_port" in rule.match:
+				#match field is port
+					inPort = rule.match["in_port"]
+					remoteSwitchID = topo.getRemoteSwitch(dpid, inPort)
+					remotePort = topo.getRemotePort(dpid, port)
+					toTableID = topo.getToTableID(remoteSwitchID, remotePort)
+					inPacket = self.sumAllCounters(self.counterTables[remoteSwitchID][toTableID])
+				elif "ipv4_dst" in rule.match:
+				#match field is ipv4
+					for port in range(1, topo.maxPort[dpid] + 1):
+						if topo.isSwitch(dpid, port):
+							remoteSwitchID = topo.getRemoteSwitch(dpid, port)
+							remotePort = topo.getRemotePort(dpid, port)
+							toTableID = topo.getToTableID(remoteSwitchID, remotePort)
+							counterRule = self.findRule(match, self.counterTables[remoteSwitchID][toTableID])
+							print counterRule.packet_count, "packets from switch", remoteSwitchID
+							inPacket += counterRule.packet_count
 
 				print "sum of in-packet:", inPacket
-				#get the sum of out-packet
+				
+				'''
+				#get the sum of out-packet (real)
 				remoteSwitchID = topo.getRemoteSwitch(dpid, forwardPort)
-				remotePort = topo.getRemotePort(dpid, port)
+				remotePort = topo.getRemotePort(dpid, forwardPort)
 				fromTableID = topo.getFromTableID(remoteSwitchID, remotePort)
 				counterRule = self.findRule(match, self.counterTables[remoteSwitchID][fromTableID])
 				outPacket = counterRule.packet_count
+				'''
+				#get the sum of out-packet (fake)
+				remoteSwitchID = topo.getRemoteSwitch(dpid, forwardPort)
+				remotePort = topo.getRemotePort(dpid, forwardPort)
+				fromTableID = topo.getFromTableID(remoteSwitchID, remotePort)
+				outPacket = self.sumAllCounters(self.counterTables[remoteSwitchID][fromTableID])
 				print "out-packet:", outPacket
 
 
@@ -293,15 +320,15 @@ class SimpleDetector(simple_switch_13.SimpleSwitch13):
 		while not self.isFinish():
 			hub.sleep(1)
 
-		self.check(2)
-		'''	
+		#self.check(2)
+		
 		while True:
 			for dp in self.datapaths.values():
 				dpid = dp.id
-				if dpid == 2 and self.check(dpid) == False:
+				if dpid == 2 and self.check(2) == False:
 					self.mValue[dpid] += 1			
 			hub.sleep(10)
-		'''
+		
 	'''
 	#called when a switch send a flow table back
 	@set_ev_cls(ofp_event.EventOFPFlowStatsReply, MAIN_DISPATCHER)
