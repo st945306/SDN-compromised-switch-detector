@@ -11,7 +11,8 @@ def addFWRuleByPort(datapath, tableID, inPort, outPort):
 	mod = parser.OFPFlowMod(
 		datapath=datapath, table_id=tableID, match=match, cookie=0,
 		command=ofp.OFPFC_ADD, idle_timeout=0, hard_timeout=0,
-		priority=ofp.OFP_DEFAULT_PRIORITY,
+		#priority=ofp.OFP_DEFAULT_PRIORITY,
+		priority=1,
 		flags=ofp.OFPFF_SEND_FLOW_REM, instructions=insts)
 	datapath.send_msg(mod)
 	
@@ -25,7 +26,7 @@ def addFWRuleByIP(datapath, tableID, ipDst, outPort):
 	mod = parser.OFPFlowMod(
 		datapath=datapath, table_id=tableID, match=match, cookie=0,
 		command=ofp.OFPFC_ADD, idle_timeout=0, hard_timeout=0,
-		priority=ofp.OFP_DEFAULT_PRIORITY,
+		priority=1,
 		flags=ofp.OFPFF_SEND_FLOW_REM, instructions=insts)
 	datapath.send_msg(mod)
 
@@ -37,7 +38,8 @@ def addFWRuleByMatch(datapath, tableID, match, outPort):
 	mod = parser.OFPFlowMod(
 		datapath=datapath, table_id=tableID, match=match, cookie=0,
 		command=ofp.OFPFC_ADD, idle_timeout=0, hard_timeout=0,
-		priority=ofp.OFP_DEFAULT_PRIORITY,
+		#priority=ofp.OFP_DEFAULT_PRIORITY,
+		priority=1,
 		flags=ofp.OFPFF_SEND_FLOW_REM, instructions=insts)
 	datapath.send_msg(mod)
 
@@ -73,7 +75,7 @@ def addGTRuleByMatch(datapath, tableID, match, dstTableID):
 	mod = parser.OFPFlowMod(
 		datapath=datapath, table_id=tableID, match=match, cookie=0,
 		command=ofp.OFPFC_ADD, idle_timeout=0, hard_timeout=0,
-		priority=ofp.OFP_DEFAULT_PRIORITY,
+		priority=1,
 		flags=ofp.OFPFF_SEND_FLOW_REM, instructions=insts)
 	datapath.send_msg(mod)
 
@@ -84,8 +86,7 @@ def addGTDefaultRule(datapath, tableID, dstTableID):
 	mod = parser.OFPFlowMod(
 		datapath=datapath, table_id=tableID, match=None, cookie=0,
 		command=ofp.OFPFC_ADD, idle_timeout=0, hard_timeout=0,
-		#priority=ofp.OFP_DEFAULT_PRIORITY,
-		priority=1,
+		priority=ofp.OFP_DEFAULT_PRIORITY,
 		flags=ofp.OFPFF_SEND_FLOW_REM, instructions=insts)
 	datapath.send_msg(mod)
 
