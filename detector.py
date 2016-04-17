@@ -1,36 +1,27 @@
-from ryu.app import simple_switch_13
+from ryu.base import app_manager
 from ryu.controller import ofp_event
-from ryu.controller.handler import MAIN_DISPATCHER ,DEAD_DISPATCHER, CONFIG_DISPATCHER
+from ryu.controller.handler import MAIN_DISPATCHER, CONFIG_DISPATCHER
 from ryu.controller.handler import set_ev_cls
-#from ryu.topology import switches, api
+from ryu.ofproto import ofproto_v1_3
+from ryu.lib.packet import *
 from ryu.lib import hub
 import adder
 import topology as topo
 
-class SimpleDetector(simple_switch_13.SimpleSwitch13):
-	#_CONTEXTS = {'switches': switches.Switches}	
-
+class SimpleDetector(app_manager.RyuApp):
+	OFP_VERSIONS = [ofproto_v1_3.OFP_VERSION]
 	def __init__(self, *args, **kwargs):
 		super(SimpleDetector, self).__init__(*args, **kwargs)
-		#self.switches = kwargs['switches']
-		#get dp from dpid
-		self.datapaths = {}
-		#check finish state of dpid
-		self.finish = {}
-		#topology[dpid][portNum] = (Connected switch)[dpid, portNum]
-		self.topology = {}
+		self.datapaths = {}			#dp = datapaths[dpid]
+		self.finish = {}			#check finish state of dpid = finish[dpid]
+		self.topology = {}			#topology[dpid][portNum] = (Connected switch)[dpid, portNum]
 		self.hosts = {}
-		#original flow table on dpid
-		self.flowTables = {}
-		#counter flow tables
-		self.counterTables = {}
-		#check if counter table is ready
-		self.ready = {}
-		#max tableNum on dpid
-		self.max_table = {}
+		self.flowTables = {}		#original flow table on dpid = flowTables[dpid]
+		self.counterTables = {}		#counter flow tables = counterTables[tableID]
+		self.ready = {}				#check if counter tables are ready = ready[dpid]
+		self.max_table = {}			#max table num = max_table[dpid]
 		self.MAX_PORT = 16
-		#malice value for dpid
-		self.mValue = {}
+		self.mValue = {}			#malice value for dpid = mValue[dpid]
 
 		#init
 		for i in range(1, topo.switchNum + 1):
@@ -40,14 +31,8 @@ class SimpleDetector(simple_switch_13.SimpleSwitch13):
 			self.mValue[i] = 0
 
 		self.monitor_thread = hub.spawn(self._monitor)
+		self.flowGen_thread = hub.spawn(self.flowGen)
 
-	'''
-	#request all flow tables from a switch
-	def _request_stats(self, datapath):
-		parser = datapath.ofproto_parser
-		req = parser.OFPFlowStatsRequest(datapath)
-		datapath.send_msg(req)
-	'''
 	#request specific flow table with table id
 	def requestFlowTable(self, datapath, tableID):
 		parser = datapath.ofproto_parser
@@ -78,7 +63,7 @@ class SimpleDetector(simple_switch_13.SimpleSwitch13):
 				self.hosts[dpid].append(port)
 	'''
 	#called when a switch is added
-	@set_ev_cls(ofp_event.EventOFPStateChange, [MAIN_DISPATCHER, DEAD_DISPATCHER])
+	@set_ev_cls(ofp_event.EventOFPStateChange, MAIN_DISPATCHER)
 	def _state_change_handler(self, ev):
 		datapath = ev.datapath
 		dpid = datapath.id
@@ -90,20 +75,9 @@ class SimpleDetector(simple_switch_13.SimpleSwitch13):
 					topo.initTopology(self.max_table)
 					adder.addTestRule(self.datapaths)
 					#this should be change
-					#self.requestFlowTable(self.datapaths[2], 0)
-					
+					#self.requestFlowTable(self.datapaths[2], 0)		
 					for i in range(1, topo.switchNum + 1):
 						self.requestFlowTable(self.datapaths[i], 0)
-					
-		#what is this for?
-		else:
-			if dpid in self.datapaths:
-				del self.datapaths[dpid]
-				del self.finish[dpid]
-				for key,value in self.topology[dpid].items():
-					del self.topology[value[0]][value[1]]
-				del self.topology[dpid]
-				del self.hosts[dpid]
 
 	#return true if all switches finish initialize
 	def isFinish(self):
@@ -149,9 +123,9 @@ class SimpleDetector(simple_switch_13.SimpleSwitch13):
 			#add default rule on table 0, so packet from host won't ask controller
 			adder.addGTDefaultRule(self.datapaths[dpid], 0, topo.getMainTableID(dpid))
 			#I don't know why I have to do this QQ
-			adder.addGTRuleByPort(self.datapaths[1], 0, 1, 1)
-			adder.addGTRuleByPort(self.datapaths[2], 0, 2, 2)
-			adder.addGTRuleByPort(self.datapaths[3], 0, 2, 2)
+			#adder.addGTRuleByPort(self.datapaths[1], 0, 1, 1)
+			#adder.addGTRuleByPort(self.datapaths[2], 0, 2, 2)
+			#adder.addGTRuleByPort(self.datapaths[3], 0, 2, 2)
 
 			#process each rule
 			for rule in body:
@@ -199,11 +173,7 @@ class SimpleDetector(simple_switch_13.SimpleSwitch13):
 		return False
 
 	def findRule(self, match, table):
-		#print "match", match
-		#print "table", table
 		for rule in table:
-			#print "match", match
-			#print "rule.match", rule.match
 			if self.compare(match, rule.match):
 				return rule
 		print "not found", match
@@ -249,24 +219,8 @@ class SimpleDetector(simple_switch_13.SimpleSwitch13):
 				#ignore broadcast rule
 				if forwardPort > topo.maxPort[dpid]:
 					continue
-				if "in_port" in rule.match:
-					print 'match field is port'
-					#get the sum of in-packet
-					inPacket = 0
-					inPort = rule.match["in_port"]
-					remoteSwitchID = topo.getRemoteSwitch(dpid, inPort)
-					remotePort = topo.getRemotePort(dpid, port)
-					toTableID = topo.getToTableID(remoteSwitchID, remotePort)
-					inPacket = self.sumAllCounters(self.counterTables[remoteSwitchID][toTableID])
-					print "sum of in-packet:", inPacket
-					#get the sum of out-packet (this is wrong)
-					remoteSwitchID = topo.getRemoteSwitch(dpid, forwardPort)
-					remotePort = topo.getRemotePort(dpid, forwardPort)
-					fromTableID = topo.getFromTableID(remoteSwitchID, remotePort)
-					outPacket = self.sumAllCounters(self.counterTables[remoteSwitchID][fromTableID])
-					print "out-packet:", outPacket
-					print "===========================DELTA =", outPacket - inPacket
-				elif "ipv4_dst" in rule.match:
+
+				if "ipv4_dst" in rule.match:
 					print 'match field is ipv4'
 					#get the sum of in-packet
 					inPacket = 0
@@ -288,6 +242,8 @@ class SimpleDetector(simple_switch_13.SimpleSwitch13):
 					counterRule = self.findRule(match, self.counterTables[remoteSwitchID][fromTableID])
 					outPacket = counterRule.packet_count
 					print "sum of out-packet:", outPacket
+					print "=========================== DELTA =", outPacket - inPacket
+
 
 		'''
 			if rule.action == fowarding:
@@ -327,15 +283,35 @@ class SimpleDetector(simple_switch_13.SimpleSwitch13):
 		#wait until all switches finish initailize
 		while not self.isFinish():
 			hub.sleep(1)
-
-		#self.check(2)
-		
 		while True:
 			for dp in self.datapaths.values():
 				dpid = dp.id
-				if dpid == 2 and self.check(2) == False:
+				if dpid == 3 and self.check(3) == False:
 					self.mValue[dpid] += 1			
 			hub.sleep(10)
+
+	def flowGen(self):
+		#wait until all switches finish initailize
+		while not self.isFinish():
+			hub.sleep(1)
+		pkt = packet.Packet()
+		pkt_ipv4 = pkt.get_protocol(ipv4.ipv4)
+		pkt.add_protocol(ethernet.ethernet())
+		pkt.add_protocol(ipv4.ipv4(dst='192.168.0.1'))
+		pkt.add_protocol(icmp.icmp())
+		pkt.serialize()
+		data = pkt.data
+		
+		dp = self.datapaths[1];
+		ofp = dp.ofproto
+		actions = [dp.ofproto_parser.OFPActionOutput(2)]
+		while True:
+			print 'one packet sent'
+			out = dp.ofproto_parser.OFPPacketOut(datapath=dp, actions=actions, data=data, 
+				in_port=ofp.OFPP_CONTROLLER, buffer_id=ofp.OFP_NO_BUFFER)
+			dp.send_msg(out)
+			hub.sleep(1)
+
 		
 	'''
 	#called when a switch send a flow table back

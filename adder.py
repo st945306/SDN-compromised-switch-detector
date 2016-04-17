@@ -1,6 +1,8 @@
 '''
 provide add rule functions
 '''
+from ryu.ofproto import inet
+
 def addFWRuleByPort(datapath, tableID, inPort, outPort):
 	ofp = datapath.ofproto
 	parser = datapath.ofproto_parser
@@ -20,8 +22,7 @@ def addFWRuleByIP(datapath, tableID, ipDst, outPort):
 	parser = datapath.ofproto_parser
 	actions = [datapath.ofproto_parser.OFPActionOutput(outPort)]
 	insts = [parser.OFPInstructionActions(ofp.OFPIT_APPLY_ACTIONS, actions)]
-	#eth_type is so important!!!
-	match = parser.OFPMatch(eth_type=0x0800, ipv4_dst=ipDst)    
+	match = parser.OFPMatch(eth_type=0x0800, ipv4_dst=ipDst) #ip_proto=inet.IPPROTO_TCP)    
 	mod = parser.OFPFlowMod(
 		datapath=datapath, table_id=tableID, match=match, cookie=0,
 		command=ofp.OFPFC_ADD, idle_timeout=0, hard_timeout=0,
@@ -103,15 +104,19 @@ def addTestRule(datapaths):
 	addFWRuleByIP(datapaths[2], 0, '10.0.0.3', 3)
 	addFWRuleByIP(datapaths[3], 0, '10.0.0.3', 1)
 	'''
-	
+	addFWRuleByIP(datapaths[2], 0, '192.168.0.1', 3)
+	addFWRuleByIP(datapaths[3], 0, '192.168.0.1', 3)
+	addFWRuleByIP(datapaths[4], 0, '192.168.0.1', 3)
+	#addFWRuleByIP(datapaths[2], 0, '10.0.0.3', 2)
+
 	#test by port
-	addFWRuleByPort(datapaths[1], 0, 1, 2)
+	#addFWRuleByPort(datapaths[1], 0, 1, 2)
 	#addFWRuleByPort(datapaths[1], 0, 2, 1)
 
-	addFWRuleByPort(datapaths[2], 0, 2, 3)
+	#addFWRuleByPort(datapaths[2], 0, 2, 3)
 	#addFWRuleByPort(datapaths[2], 0, 3, 2)
 
-	addFWRuleByPort(datapaths[3], 0, 2, 1)
+	#addFWRuleByPort(datapaths[3], 0, 2, 1)
 	#addFWRuleByPort(datapaths[3], 0, 1, 2)
 	
 	#addGTDefaultRule(datapaths[1], 3, 252)
