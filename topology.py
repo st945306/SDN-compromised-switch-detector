@@ -1,29 +1,14 @@
 '''
 define topology for controller
 '''
+import randTopo
+import random
 ######define######
-switchNum = 5
+switchNum = randTopo.switchNum
 
 #portMap[(dpid, port)] = (dpid, port)
-portMap = {}
+portMap = randTopo.portMap
 
-#switch
-portMap[(1, 2)] = (2, 2)
-portMap[(2, 2)] = (1, 2)
-portMap[(2, 3)] = (3, 2)
-portMap[(3, 2)] = (2, 3)
-portMap[(3, 3)] = (4, 2)
-portMap[(4, 2)] = (3, 3)
-portMap[(4, 3)] = (5, 2)
-portMap[(5, 2)] = (4, 3)
-
-
-#host
-portMap[(1, 1)] = (0, 0)
-portMap[(2, 1)] = (0, 0)
-portMap[(3, 1)] = (0, 0)
-portMap[(4, 1)] = (0, 0)
-portMap[(5, 1)] = (0, 0)
 
 ######define######
 
@@ -54,7 +39,7 @@ def getMainTableID(dpid):
 	return maxPort[dpid] + 1
 
 def isSwitch(dpid, port):
-	return portMap[(dpid, port)] != (0, 0)
+	return (dpid, port) in portMap
 
 #return a list of dpid of adjacent switches
 def getAdjSwitches(dpid):
@@ -68,4 +53,29 @@ def getRemoteSwitch(dpid, port):
 	return portMap[(dpid, port)][0]
 
 def getRemotePort(dpid, port):
-	return portMap[dpid, port][1]
+        return portMap[dpid, port][1]
+
+isUsed = {}
+def findUnusedAdj(centerSwitch):
+    candidate = []
+    for i in range(1, 255):
+        t = (centerSwitch, i)
+        if t in portMap and portMap[t][0] not in isUsed:
+            candidate.append(portMap[t])
+    if len(candidate) == 0:
+        print 'dead end'
+        return (-1, -1)
+    return random.choice(candidate)
+
+def getPath(length):
+    path = []
+    thisSwitch = random.choice(portMap.keys())
+    for i in range(1, length + 1):
+        nextSwitch = findUnusedAdj(thisSwitch[0])
+        path.append(portMap[nextSwitch])
+        isUsed[thisSwitch[0]] = True
+        thisSwitch = nextSwitch
+    print path
+    return path
+    
+
