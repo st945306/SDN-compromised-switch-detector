@@ -22,7 +22,10 @@ class SimpleDetector(app_manager.RyuApp):
 		self.max_table = {}			#max table num = max_table[dpid]
 		self.MAX_PORT = 16
 		self.mValue = {}			#malice value for dpid = mValue[dpid]
-
+                
+                self.pathNum = 1
+                self.pathLen = 5
+                self.paths = {}                         #path = paths[pathID]
 		#init
 		for i in range(1, topo.switchNum + 1):
 			self.finish[i] = False
@@ -30,7 +33,7 @@ class SimpleDetector(app_manager.RyuApp):
 			self.ready[i] = 0
 			self.mValue[i] = 0
 
-		self.monitor_thread = hub.spawn(self._monitor)
+		#self.monitor_thread = hub.spawn(self._monitor)
 		self.flowGen_thread = hub.spawn(self.flowGen)
 
 	#request specific flow table with table id
@@ -73,11 +76,13 @@ class SimpleDetector(app_manager.RyuApp):
 				#self._record_topology(dpid)
 				if len(self.datapaths) == topo.switchNum:
 					topo.initTopology(self.max_table)
-					adder.addTestRule(self.datapaths)
+                                        for i in range(0, self.pathNum):
+                                            self.paths[i] = topo.getPath(self.pathLen)
+					    adder.addTestRule(self.datapaths, self.paths[i])
 					#this should be change
 					#self.requestFlowTable(self.datapaths[2], 0)		
-					for i in range(1, topo.switchNum + 1):
-						self.requestFlowTable(self.datapaths[i], 0)
+					#for i in range(1, topo.switchNum + 1):
+					#	self.requestFlowTable(self.datapaths[i], 0)
 
 	#return true if all switches finish initialize
 	def isFinish(self):
@@ -292,19 +297,23 @@ class SimpleDetector(app_manager.RyuApp):
 
 	def flowGen(self):
 		#wait until all switches finish initailize
-		while not self.isFinish():
-			hub.sleep(1)
+		#while not self.isFinish():
+		#	hub.sleep(1)
+                hub.sleep(10)
+
 		pkt = packet.Packet()
 		pkt_ipv4 = pkt.get_protocol(ipv4.ipv4)
 		pkt.add_protocol(ethernet.ethernet())
-		pkt.add_protocol(ipv4.ipv4(dst='192.168.0.1'))
+		pkt.add_protocol(ipv4.ipv4(dst='192.168.99.1'))
 		pkt.add_protocol(icmp.icmp())
 		pkt.serialize()
 		data = pkt.data
 		
-		dp = self.datapaths[1];
+                start = self.paths[0][0]
+                print 'start from', start
+		dp = self.datapaths[start[0]];
 		ofp = dp.ofproto
-		actions = [dp.ofproto_parser.OFPActionOutput(2)]
+		actions = [dp.ofproto_parser.OFPActionOutput(start[1])]
 		while True:
 			print 'one packet sent'
 			out = dp.ofproto_parser.OFPPacketOut(datapath=dp, actions=actions, data=data, 
