@@ -1,2 +1,7 @@
 *.pyc
 en.sh
+test.py
+sd.py
+command
+*.out
+smart_switchv3.py
