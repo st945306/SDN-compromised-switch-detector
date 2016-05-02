@@ -1,7 +1,7 @@
 from mininet.topo import Topo
 import imp
 
-class basicTopo(Topo):
+class topoGen(Topo):
 	def __init__(self):
 		Topo.__init__(self)
 		randTopo = imp.load_source('module.name', 'randTopo.py')
@@ -36,4 +36,4 @@ class basicTopo(Topo):
 			self.addLink(switches[i[0] - 1], switches[v[0] - 1], port1 = i[1], port2 = v[1])
 			record[v] = 1
 
-topos = {"basicTopo": (lambda: basicTopo())}
+topos = {"randTopo": (lambda: topoGen())}
